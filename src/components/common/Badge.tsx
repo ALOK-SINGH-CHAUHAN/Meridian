@@ -6,7 +6,7 @@ interface BadgeProps {
   className?: string;
 }
 
-export function Badge({ type, value, className = '' }: BadgeProps) {
+export const Badge = React.memo(function Badge({ type, value, className = '' }: BadgeProps) {
   let badgeStyles = "inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-semibold rounded-full tracking-wide uppercase border cursor-default ";
   const val = value.toLowerCase();
 
@@ -51,4 +51,4 @@ export function Badge({ type, value, className = '' }: BadgeProps) {
       {displayLabel}
     </span>
   );
-}
+});

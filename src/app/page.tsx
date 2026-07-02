@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { useAppData } from '../context/AppDataContext';
 import { calculateMetrics } from '../utils/metrics';
 import { getRelativeTimeString, isPastDate } from '../utils/dateHelpers';
@@ -10,6 +11,7 @@ import { PageWrapper } from '../components/layout/PageWrapper';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
+import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
 import { 
   PlusCircle, 
   CheckCircle2, 
@@ -45,33 +47,7 @@ import {
 } from 'recharts';
 
 function AnimatedNumber({ value }: { value: number }) {
-  const [displayValue, setDisplayValue] = useState(value);
-  
-  useEffect(() => {
-    let start = displayValue;
-    const end = value;
-    if (start === end) return;
-    
-    const duration = 400; // ms
-    const startTime = performance.now();
-    let animationFrameId: number;
-    
-    const updateNumber = (now: number) => {
-      const elapsed = now - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const ease = progress * (2 - progress); // Ease out quad
-      const current = Math.round(start + (end - start) * ease);
-      setDisplayValue(current);
-      
-      if (progress < 1) {
-        animationFrameId = requestAnimationFrame(updateNumber);
-      }
-    };
-    
-    animationFrameId = requestAnimationFrame(updateNumber);
-    return () => cancelAnimationFrame(animationFrameId);
-  }, [value]);
-  
+  const displayValue = useAnimatedNumber(value);
   return <>{displayValue}</>;
 }
 
@@ -110,71 +86,75 @@ export default function DashboardPage() {
   }, []);
 
   // Filter tasks based on global context filters before calculations
-  const filteredTasks = tasks.filter(t => {
-    const matchesSearch = !searchFilter || 
-                          t.title.toLowerCase().includes(searchFilter.toLowerCase()) || 
-                          t.description.toLowerCase().includes(searchFilter.toLowerCase());
-    const matchesPriority = priorityFilter === 'all' || t.priority === priorityFilter;
-    
-    let matchesStatus = true;
-    if (statusFilter !== 'all') {
-      if (statusFilter === 'todo') {
-        matchesStatus = t.status === 'todo' || t.status === 'overdue';
-      } else {
-        matchesStatus = t.status === statusFilter;
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(t => {
+      const matchesSearch = !searchFilter || 
+                            t.title.toLowerCase().includes(searchFilter.toLowerCase()) || 
+                            t.description.toLowerCase().includes(searchFilter.toLowerCase());
+      const matchesPriority = priorityFilter === 'all' || t.priority === priorityFilter;
+      
+      let matchesStatus = true;
+      if (statusFilter !== 'all') {
+        if (statusFilter === 'todo') {
+          matchesStatus = t.status === 'todo' || t.status === 'overdue';
+        } else {
+          matchesStatus = t.status === statusFilter;
+        }
       }
-    }
 
-    const assignee = employees.find(e => e.id === t.assigneeId);
-    const matchesDept = deptFilter === 'all' || (assignee && assignee.department === deptFilter);
+      const assignee = employees.find(e => e.id === t.assigneeId);
+      const matchesDept = deptFilter === 'all' || (assignee && assignee.department === deptFilter);
 
-    return matchesSearch && matchesPriority && matchesStatus && matchesDept;
-  });
+      return matchesSearch && matchesPriority && matchesStatus && matchesDept;
+    });
+  }, [tasks, employees, searchFilter, priorityFilter, statusFilter, deptFilter]);
 
   // Calculate live metrics based on filtered list
-  const metrics = calculateMetrics(filteredTasks, employees);
+  const metrics = useMemo(() => calculateMetrics(filteredTasks, employees), [filteredTasks, employees]);
 
   // Time range day count selection
   const numDays = timeRangeFilter === '7days' ? 7 : timeRangeFilter === '30days' ? 30 : 14;
 
   // Multi-line completions trend data by department
-  const chartData = Array.from({ length: numDays }).map((_, idx) => {
-    const daysAgo = numDays - 1 - idx;
-    const d = new Date();
-    d.setDate(d.getDate() - daysAgo);
-    const dateLabel = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const chartData = useMemo(() => {
+    return Array.from({ length: numDays }).map((_, idx) => {
+      const daysAgo = numDays - 1 - idx;
+      const d = new Date();
+      d.setDate(d.getDate() - daysAgo);
+      const dateLabel = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
-    const dateLimit = new Date(d);
-    dateLimit.setHours(23, 59, 59, 999);
+      const dateLimit = new Date(d);
+      dateLimit.setHours(23, 59, 59, 999);
 
-    const getCompletionsByDeptCumulative = (deptName: string) => {
-      return filteredTasks.filter(t => {
-        if (t.status !== 'done') return false;
-        const assignee = employees.find(e => e.id === t.assigneeId);
-        if (!assignee || assignee.department !== deptName) return false;
-        
-        const taskDate = new Date(t.dueDate);
-        return taskDate <= dateLimit;
-      }).length;
-    };
+      const getCompletionsByDeptCumulative = (deptName: string) => {
+        return filteredTasks.filter(t => {
+          if (t.status !== 'done') return false;
+          const assignee = employees.find(e => e.id === t.assigneeId);
+          if (!assignee || assignee.department !== deptName) return false;
+          
+          const taskDate = new Date(t.dueDate);
+          return taskDate <= dateLimit;
+        }).length;
+      };
 
-    // Productivity Score (cumulative completion rate up to this day)
-    const tasksUpToDay = filteredTasks.filter(t => new Date(t.createdAt) <= dateLimit);
-    const doneUpToDay = tasksUpToDay.filter(t => t.status === 'done').length;
-    const rateUpToDay = tasksUpToDay.length > 0 ? Math.round((doneUpToDay / tasksUpToDay.length) * 100) : 0;
+      // Productivity Score (cumulative completion rate up to this day)
+      const tasksUpToDay = filteredTasks.filter(t => new Date(t.createdAt) <= dateLimit);
+      const doneUpToDay = tasksUpToDay.filter(t => t.status === 'done').length;
+      const rateUpToDay = tasksUpToDay.length > 0 ? Math.round((doneUpToDay / tasksUpToDay.length) * 100) : 0;
 
-    return {
-      name: dateLabel,
-      Engineering: getCompletionsByDeptCumulative('Engineering'),
-      Product: getCompletionsByDeptCumulative('Product'),
-      Security: getCompletionsByDeptCumulative('Security'),
-      Operations: getCompletionsByDeptCumulative('Operations'),
-      Productivity: rateUpToDay === 0 ? 55 + idx * 2 : rateUpToDay
-    };
-  });
+      return {
+        name: dateLabel,
+        Engineering: getCompletionsByDeptCumulative('Engineering'),
+        Product: getCompletionsByDeptCumulative('Product'),
+        Security: getCompletionsByDeptCumulative('Security'),
+        Operations: getCompletionsByDeptCumulative('Operations'),
+        Productivity: rateUpToDay === 0 ? 55 + idx * 2 : rateUpToDay
+      };
+    });
+  }, [filteredTasks, employees, numDays]);
 
   // Mini-Sparkline data generator
-  const getSparklineData = (metric: 'employees' | 'active' | 'overdue' | 'rate') => {
+  const getSparklineData = useCallback((metric: 'employees' | 'active' | 'overdue' | 'rate') => {
     return Array.from({ length: 8 }).map((_, idx) => {
       const d = new Date();
       d.setDate(d.getDate() - (7 - idx));
@@ -206,33 +186,35 @@ export default function DashboardPage() {
       const done = tasksUpToDay.filter(t => t.status === 'done').length;
       return { value: tasksUpToDay.length > 0 ? Math.round((done / tasksUpToDay.length) * 100) : 0 };
     });
-  };
+  }, [filteredTasks, employees, deptFilter]);
 
   // Task Distribution Donut Data
-  const todoCount = filteredTasks.filter(t => t.status === 'todo' || t.status === 'overdue').length;
-  const inProgressCount = filteredTasks.filter(t => t.status === 'in-progress').length;
-  const doneCount = filteredTasks.filter(t => t.status === 'done').length;
+  const donutData = useMemo(() => {
+    const todoCount = filteredTasks.filter(t => t.status === 'todo' || t.status === 'overdue').length;
+    const inProgressCount = filteredTasks.filter(t => t.status === 'in-progress').length;
+    const doneCount = filteredTasks.filter(t => t.status === 'done').length;
 
-  const donutData = [
-    { name: 'Todo', value: todoCount, color: '#f87171' }, // light red
-    { name: 'In Progress', value: inProgressCount, color: '#fb923c' }, // light orange
-    { name: 'Done', value: doneCount, color: '#4ade80' } // light green
-  ].filter(item => item.value > 0);
+    return [
+      { name: 'Todo', value: todoCount, color: '#f87171' }, // light red
+      { name: 'In Progress', value: inProgressCount, color: '#fb923c' }, // light orange
+      { name: 'Done', value: doneCount, color: '#4ade80' } // light green
+    ].filter(item => item.value > 0);
+  }, [filteredTasks]);
 
   // Department Performance completion rate calculations
-  const departmentsList = ['Engineering', 'Product', 'Security', 'Operations'];
-  const getDeptPerformance = (deptName: string) => {
+  const departmentsList = useMemo(() => ['Engineering', 'Product', 'Security', 'Operations'], []);
+  const getDeptPerformance = useCallback((deptName: string) => {
     const deptTasks = tasks.filter(t => {
       const assignee = employees.find(e => e.id === t.assigneeId);
       return assignee && assignee.department === deptName;
     });
     const completed = deptTasks.filter(t => t.status === 'done').length;
     return deptTasks.length > 0 ? Math.round((completed / deptTasks.length) * 100) : 0;
-  };
+  }, [tasks, employees]);
 
   // Weekday Heatmap Calculations
-  const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-  const getWeekdayActivity = (dayIndex: number) => {
+  const weekdays = useMemo(() => ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], []);
+  const getWeekdayActivity = useCallback((dayIndex: number) => {
     return filteredTasks.filter(t => {
       const taskDate = new Date(t.dueDate);
       let day = taskDate.getDay();
@@ -240,30 +222,30 @@ export default function DashboardPage() {
       if (day === 6) day = 5; // Sat -> Fri
       return day === (dayIndex + 1);
     }).length;
-  };
+  }, [filteredTasks]);
 
-  const weekdayData = weekdays.map((day, idx) => ({
+  const weekdayData = useMemo(() => weekdays.map((day, idx) => ({
     day,
     count: getWeekdayActivity(idx),
-  })).sort((a, b) => b.count - a.count);
+  })).sort((a, b) => b.count - a.count), [weekdays, getWeekdayActivity]);
 
   // Employee Leaderboard calculations
-  const leaderboardData = employees
+  const leaderboardData = useMemo(() => employees
     .map(emp => {
       const completedCount = tasks.filter(t => t.assigneeId === emp.id && t.status === 'done').length;
       return { name: emp.name, count: completedCount, avatar: emp.avatarUrl };
     })
     .sort((a, b) => b.count - a.count)
-    .slice(0, 4);
+    .slice(0, 4), [employees, tasks]);
 
   // Upcoming Deadlines (within next 7 days, sorted by nearest)
-  const upcomingDeadlines = filteredTasks
+  const upcomingDeadlines = useMemo(() => filteredTasks
     .filter(t => t.status !== 'done' && new Date(t.dueDate) > new Date())
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-    .slice(0, 3);
+    .slice(0, 3), [filteredTasks]);
 
   // Grouped Activity Logs (Today, Yesterday, Earlier)
-  const groupEvents = () => {
+  const groupedEvents = useMemo(() => {
     const now = new Date();
     const today: typeof events = [];
     const yesterday: typeof events = [];
@@ -284,11 +266,9 @@ export default function DashboardPage() {
     });
 
     return { today, yesterday, earlier };
-  };
+  }, [events]);
 
-  const groupedEvents = groupEvents();
-
-  const handleExportJSON = () => {
+  const handleExportJSON = useCallback(() => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(filteredTasks, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute("href", dataStr);
@@ -297,38 +277,31 @@ export default function DashboardPage() {
     downloadAnchor.click();
     downloadAnchor.remove();
     setShowExportMenu(false);
-  };
+  }, [filteredTasks]);
 
-  const handleExportCSV = () => {
-    const headers = ['ID', 'Title', 'Priority', 'Status', 'Due Date', 'Created At'];
-    const rows = filteredTasks.map(t => [
-      t.id,
-      `"${t.title.replace(/"/g, '""')}"`,
-      t.priority,
-      t.status,
-      t.dueDate,
-      t.createdAt
-    ]);
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const dataStr = "data:text/csv;charset=utf-8," + encodeURIComponent(csvContent);
+  const handleExportCSV = useCallback(() => {
+    if (filteredTasks.length === 0) return;
+    const headers = Object.keys(filteredTasks[0]).join(',');
+    const rows = filteredTasks.map(t => Object.values(t).map(v => `"${v}"`).join(',')).join('\n');
+    const csvStr = "data:text/csv;charset=utf-8," + encodeURIComponent(`${headers}\n${rows}`);
     const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("href", csvStr);
     downloadAnchor.setAttribute("download", `meridian_tasks_export_${Date.now()}.csv`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
     setShowExportMenu(false);
-  };
+  }, [filteredTasks]);
 
   // Recent logs click handler -> search for task inside log
-  const handleLogClick = (evt: typeof events[0]) => {
+  const handleLogClick = useCallback((evt: typeof events[0]) => {
     const match = evt.message.match(/"([^"]+)"/);
     if (match && match[1]) {
       router.push(`/tasks?search=${encodeURIComponent(match[1])}`);
     } else {
       router.push(`/tasks`);
     }
-  };
+  }, [router]);
 
   const getActivityIcon = (type: string) => {
     switch (type) {

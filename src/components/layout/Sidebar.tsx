@@ -1,37 +1,41 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, CheckSquare, Users, Settings, Menu, X, Globe, Compass, Database, BarChart3, TrendingUp } from 'lucide-react';
 import { useAppData } from '../../context/AppDataContext';
 
-export function Sidebar() {
-  const pathname = usePathname();
-  const [isOpen, setIsOpen] = useState(false);
-  const { tasks, employees } = useAppData();
-  const [progressWidth, setProgressWidth] = useState('0%');
+const navItems = [
+  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Tasks', href: '/tasks', icon: CheckSquare },
+  { name: 'Employees', href: '/employees', icon: Users },
+  { name: 'Reports', href: '#', icon: BarChart3, disabled: true },
+  { name: 'Analytics', href: '#', icon: TrendingUp, disabled: true },
+  { name: 'Settings', href: '/settings', icon: Settings },
+];
 
-  useEffect(() => {
-    const timer = setTimeout(() => setProgressWidth('92%'), 300);
-    return () => clearTimeout(timer);
-  }, []);
+const quickLinks = [
+  { name: 'Codebase Repo', href: '#', icon: Globe },
+  { name: 'Operations Specs', href: '#', icon: Compass }
+];
 
-  const navItems = [
-    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-    { name: 'Tasks', href: '/tasks', icon: CheckSquare },
-    { name: 'Employees', href: '/employees', icon: Users },
-    { name: 'Reports', href: '#', icon: BarChart3, disabled: true },
-    { name: 'Analytics', href: '#', icon: TrendingUp, disabled: true },
-    { name: 'Settings', href: '/settings', icon: Settings },
-  ];
+interface SidebarContentProps {
+  pathname: string;
+  progressWidth: string;
+  tasksCount: number;
+  employeesCount: number;
+  onLinkClick: () => void;
+}
 
-  const quickLinks = [
-    { name: 'Codebase Repo', href: '#', icon: Globe },
-    { name: 'Operations Specs', href: '#', icon: Compass }
-  ];
-
-  const SidebarContent = () => (
+const SidebarContent = React.memo(function SidebarContent({
+  pathname,
+  progressWidth,
+  tasksCount,
+  employeesCount,
+  onLinkClick
+}: SidebarContentProps) {
+  return (
     <div className="flex flex-col h-full bg-fog p-5 pb-12">
       {/* Brand logo */}
       <div className="mb-8 pl-2 flex items-center gap-2.5">
@@ -66,7 +70,7 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              onClick={() => setIsOpen(false)}
+              onClick={onLinkClick}
               className={`flex items-center gap-3 px-4 py-3 text-[14px] font-semibold rounded-xl transition-all ${
                 isActive
                   ? 'bg-blue-accent text-white shadow-md shadow-blue-500/20'
@@ -91,19 +95,41 @@ export function Sidebar() {
             <div className="bg-blue-accent h-full rounded-full transition-all duration-500" style={{ width: progressWidth }} />
           </div>
           <div className="flex justify-between text-[11px] font-semibold text-text-ash">
-            <span>Tasks: <strong className="text-text-primary">{tasks.length}</strong></span>
-            <span>Employees: <strong className="text-text-primary">{employees.length}</strong></span>
+            <span>Tasks: <strong className="text-text-primary">{tasksCount}</strong></span>
+            <span>Employees: <strong className="text-text-primary">{employeesCount}</strong></span>
           </div>
         </div>
       </div>
     </div>
   );
+});
+
+export function Sidebar() {
+  const pathname = usePathname();
+  const [isOpen, setIsOpen] = useState(false);
+  const { tasks, employees } = useAppData();
+  const [progressWidth, setProgressWidth] = useState('0%');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setProgressWidth('92%'), 300);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleLinkClick = useCallback(() => {
+    setIsOpen(false);
+  }, []);
 
   return (
     <>
       {/* Desktop Sidebar */}
       <aside className="hidden md:block w-[224px] fixed top-0 bottom-0 left-0 border-r border-hairline/10 z-20">
-        <SidebarContent />
+        <SidebarContent 
+          pathname={pathname}
+          progressWidth={progressWidth}
+          tasksCount={tasks.length}
+          employeesCount={employees.length}
+          onLinkClick={handleLinkClick}
+        />
       </aside>
 
       {/* Mobile Navigation Bar */}
@@ -139,7 +165,13 @@ export function Sidebar() {
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <SidebarContent />
+        <SidebarContent 
+          pathname={pathname}
+          progressWidth={progressWidth}
+          tasksCount={tasks.length}
+          employeesCount={employees.length}
+          onLinkClick={handleLinkClick}
+        />
       </aside>
     </>
   );

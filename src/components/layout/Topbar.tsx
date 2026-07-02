@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useTheme } from '../../context/ThemeContext';
@@ -39,13 +39,17 @@ export function Topbar() {
   const breadcrumbs = getBreadcrumbs();
 
   // Matched items
-  const matchedTasks = topSearch.trim()
-    ? tasks.filter(t => t.title.toLowerCase().includes(topSearch.toLowerCase())).slice(0, 3)
-    : [];
+  const matchedTasks = useMemo(() => {
+    return topSearch.trim()
+      ? tasks.filter(t => t.title.toLowerCase().includes(topSearch.toLowerCase())).slice(0, 3)
+      : [];
+  }, [topSearch, tasks]);
 
-  const matchedEmployees = topSearch.trim()
-    ? employees.filter(e => e.name.toLowerCase().includes(topSearch.toLowerCase())).slice(0, 3)
-    : [];
+  const matchedEmployees = useMemo(() => {
+    return topSearch.trim()
+      ? employees.filter(e => e.name.toLowerCase().includes(topSearch.toLowerCase())).slice(0, 3)
+      : [];
+  }, [topSearch, employees]);
 
   const showDropdown = isFocused && (matchedTasks.length > 0 || matchedEmployees.length > 0);
 

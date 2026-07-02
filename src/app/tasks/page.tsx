@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense, useRef } from 'react';
+import React, { useState, useEffect, Suspense, useRef, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAppData } from '../../context/AppDataContext';
 import { PageWrapper } from '../../components/layout/PageWrapper';
@@ -11,6 +11,7 @@ import { Select } from '../../components/common/Select';
 import { Modal } from '../../components/common/Modal';
 import { isPastDate } from '../../utils/dateHelpers';
 import { Task, TaskStatus, Priority } from '../../types';
+import { useAnimatedNumber } from '../../hooks/useAnimatedNumber';
 import { 
   Search, 
   Plus, 
@@ -47,33 +48,7 @@ import {
 
 // Eased Animated Number Component for Stat HUD
 function AnimatedNumber({ value }: { value: number }) {
-  const [displayValue, setDisplayValue] = useState(value);
-  
-  useEffect(() => {
-    let start = displayValue;
-    const end = value;
-    if (start === end) return;
-    
-    const duration = 400; // ms
-    const startTime = performance.now();
-    let animationFrameId: number;
-    
-    const updateNumber = (now: number) => {
-      const elapsed = now - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const ease = progress * (2 - progress); // Ease out quad
-      const current = Math.round(start + (end - start) * ease);
-      setDisplayValue(current);
-      
-      if (progress < 1) {
-        animationFrameId = requestAnimationFrame(updateNumber);
-      }
-    };
-    
-    animationFrameId = requestAnimationFrame(updateNumber);
-    return () => cancelAnimationFrame(animationFrameId);
-  }, [value]);
-  
+  const displayValue = useAnimatedNumber(value);
   return <>{displayValue}</>;
 }
 
@@ -371,7 +346,7 @@ function TasksPageInner() {
     useSensor(KeyboardSensor)
   );
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     if (!over) return;
     
@@ -385,68 +360,80 @@ function TasksPageInner() {
       updateTaskStatus(taskId, targetStatus);
       triggerToast(`Moved "${task.title.substring(0, 15)}..." to ${targetStatus.replace('-', ' ')}`, 'info');
     }
-  };
+  }, [tasks, updateTaskStatus]);
 
   // Filter & sort calculations
-  const filteredAndSortedTasks = tasks
-    .filter((t) => {
-      const assignee = employees.find(e => e.id === t.assigneeId);
-      const matchesSearch = t.title.toLowerCase().includes(search.toLowerCase()) || 
-                            t.description.toLowerCase().includes(search.toLowerCase()) ||
-                            (assignee && assignee.name.toLowerCase().includes(search.toLowerCase()));
-      const matchesPriority = priorityFilter === 'all' || t.priority === priorityFilter;
-      
-      let matchesStatus = true;
-      if (statusFilter !== 'all') {
-        if (statusFilter === 'todo') {
-          matchesStatus = t.status === 'todo' || t.status === 'overdue';
-        } else {
-          matchesStatus = t.status === statusFilter;
+  const filteredAndSortedTasks = useMemo(() => {
+    return tasks
+      .filter((t) => {
+        const assignee = employees.find(e => e.id === t.assigneeId);
+        const matchesSearch = t.title.toLowerCase().includes(search.toLowerCase()) || 
+                              t.description.toLowerCase().includes(search.toLowerCase()) ||
+                              (assignee && assignee.name.toLowerCase().includes(search.toLowerCase()));
+        const matchesPriority = priorityFilter === 'all' || t.priority === priorityFilter;
+        
+        let matchesStatus = true;
+        if (statusFilter !== 'all') {
+          if (statusFilter === 'todo') {
+            matchesStatus = t.status === 'todo' || t.status === 'overdue';
+          } else {
+            matchesStatus = t.status === statusFilter;
+          }
         }
-      }
 
-      const matchesDept = deptFilter === 'all' || (assignee && assignee.department === deptFilter);
+        const matchesDept = deptFilter === 'all' || (assignee && assignee.department === deptFilter);
 
-      return matchesSearch && matchesPriority && matchesStatus && matchesDept;
-    })
-    .sort((a, b) => {
-      if (sortBy === 'dueDate-asc') {
-        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-      }
-      if (sortBy === 'dueDate-desc') {
-        return new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime();
-      }
-      if (sortBy === 'title-asc') {
-        return a.title.localeCompare(b.title);
-      }
-      return 0;
-    });
+        return matchesSearch && matchesPriority && matchesStatus && matchesDept;
+      })
+      .sort((a, b) => {
+        if (sortBy === 'dueDate-asc') {
+          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+        }
+        if (sortBy === 'dueDate-desc') {
+          return new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime();
+        }
+        if (sortBy === 'title-asc') {
+          return a.title.localeCompare(b.title);
+        }
+        return 0;
+      });
+  }, [tasks, employees, search, priorityFilter, statusFilter, deptFilter, sortBy]);
 
-  const getTasksByColumn = (columnStatus: 'todo' | 'in-progress' | 'done') => {
+  const getTasksByColumn = useCallback((columnStatus: 'todo' | 'in-progress' | 'done') => {
     return filteredAndSortedTasks.filter((t) => {
       if (columnStatus === 'todo') {
         return t.status === 'todo' || t.status === 'overdue';
       }
       return t.status === columnStatus;
     });
-  };
+  }, [filteredAndSortedTasks]);
 
   // Quick stats values
-  const totalCount = tasks.length;
-  const activeCount = tasks.filter(t => t.status !== 'done').length;
-  const highCount = tasks.filter(t => t.priority === 'high' && t.status !== 'done').length;
-  const dueTodayCount = tasks.filter(t => {
-    if (t.status === 'done' || !t.dueDate) return false;
-    return new Date(t.dueDate).toDateString() === new Date().toDateString();
-  }).length;
-  const overdueCount = tasks.filter(t => {
-    if (t.status === 'done' || !t.dueDate) return false;
-    const due = new Date(t.dueDate);
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    due.setHours(0,0,0,0);
-    return due < today;
-  }).length;
+  const stats = useMemo(() => {
+    const total = tasks.length;
+    const active = tasks.filter(t => t.status !== 'done').length;
+    const high = tasks.filter(t => t.priority === 'high' && t.status !== 'done').length;
+    const dueToday = tasks.filter(t => {
+      if (t.status === 'done' || !t.dueDate) return false;
+      return new Date(t.dueDate).toDateString() === new Date().toDateString();
+    }).length;
+    const overdue = tasks.filter(t => {
+      if (t.status === 'done' || !t.dueDate) return false;
+      const due = new Date(t.dueDate);
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      due.setHours(0,0,0,0);
+      return due < today;
+    }).length;
+    
+    return { total, active, high, dueToday, overdue };
+  }, [tasks]);
+
+  const totalCount = stats.total;
+  const activeCount = stats.active;
+  const highCount = stats.high;
+  const dueTodayCount = stats.dueToday;
+  const overdueCount = stats.overdue;
 
   const handleCreateTask = (e: React.FormEvent) => {
     e.preventDefault();

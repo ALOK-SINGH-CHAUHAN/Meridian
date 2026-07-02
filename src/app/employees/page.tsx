@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAppData } from '../../context/AppDataContext';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -94,7 +94,7 @@ function EmployeesPageInner() {
   ];
 
   // Get active and completed task counts for an employee
-  const getEmployeeTaskStats = (employeeId: string) => {
+  const getEmployeeTaskStats = useCallback((employeeId: string) => {
     const empTasks = tasks.filter(t => t.assigneeId === employeeId);
     const activeTasks = empTasks.filter(t => t.status !== 'done');
     const completedTasks = empTasks.filter(t => t.status === 'done');
@@ -114,76 +114,93 @@ function EmployeesPageInner() {
       status: workloadStatus,
       rawTasks: empTasks
     };
-  };
+  }, [tasks]);
+
+  const taskStatsMap = useMemo(() => {
+    const map = new Map();
+    employees.forEach(emp => {
+      map.set(emp.id, getEmployeeTaskStats(emp.id));
+    });
+    return map;
+  }, [employees, getEmployeeTaskStats]);
 
   // Filter & Sort Employees
-  const filteredAndSortedEmployees = employees
-    .filter((emp) => {
-      const email = `${emp.name.toLowerCase().replace(/\s+/g, '.')}@meridian.com`;
-      const matchesSearch = 
-        emp.name.toLowerCase().includes(debouncedSearch.toLowerCase()) || 
-        emp.role.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        emp.department.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        email.toLowerCase().includes(debouncedSearch.toLowerCase());
-        
-      const matchesDept = department === 'all' || emp.department === department;
-      const matchesStatus = status === 'all' || emp.status === status;
-      return matchesSearch && matchesDept && matchesStatus;
-    })
-    .sort((a, b) => {
-      const aStats = getEmployeeTaskStats(a.id);
-      const bStats = getEmployeeTaskStats(b.id);
+  const filteredAndSortedEmployees = useMemo(() => {
+    return employees
+      .filter((emp) => {
+        const email = `${emp.name.toLowerCase().replace(/\s+/g, '.')}@meridian.com`;
+        const matchesSearch = 
+          emp.name.toLowerCase().includes(debouncedSearch.toLowerCase()) || 
+          emp.role.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+          emp.department.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+          email.toLowerCase().includes(debouncedSearch.toLowerCase());
+          
+        const matchesDept = department === 'all' || emp.department === department;
+        const matchesStatus = status === 'all' || emp.status === status;
+        return matchesSearch && matchesDept && matchesStatus;
+      })
+      .sort((a, b) => {
+        const aStats = taskStatsMap.get(a.id) || { workload: 0 };
+        const bStats = taskStatsMap.get(b.id) || { workload: 0 };
 
-      if (sortBy === 'name-asc') {
-        return a.name.localeCompare(b.name);
-      }
-      if (sortBy === 'name-desc') {
-        return b.name.localeCompare(a.name);
-      }
-      if (sortBy === 'dept') {
-        return a.department.localeCompare(b.department);
-      }
-      if (sortBy === 'workload-desc') {
-        return bStats.workload - aStats.workload;
-      }
-      if (sortBy === 'workload-asc') {
-        return aStats.workload - bStats.workload;
-      }
-      return 0;
-    });
+        if (sortBy === 'name-asc') {
+          return a.name.localeCompare(b.name);
+        }
+        if (sortBy === 'name-desc') {
+          return b.name.localeCompare(a.name);
+        }
+        if (sortBy === 'dept') {
+          return a.department.localeCompare(b.department);
+        }
+        if (sortBy === 'workload-desc') {
+          return bStats.workload - aStats.workload;
+        }
+        if (sortBy === 'workload-asc') {
+          return aStats.workload - bStats.workload;
+        }
+        return 0;
+      });
+  }, [employees, debouncedSearch, department, status, sortBy, taskStatsMap]);
 
   // Pagination Helper
   const totalItems = filteredAndSortedEmployees.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedEmployees = filteredAndSortedEmployees.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedEmployees = useMemo(() => filteredAndSortedEmployees.slice(startIndex, startIndex + itemsPerPage), [filteredAndSortedEmployees, startIndex, itemsPerPage]);
 
   useEffect(() => {
     // Reset page if filters change
     setCurrentPage(1);
   }, [debouncedSearch, department, status, sortBy]);
 
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     setSearch('');
     setDepartment('all');
     setStatus('all');
     setSortBy('name-asc');
-  };
+  }, []);
 
   // Summary Metrics calculations
-  const totalEmployees = employees.length;
-  const activeCount = employees.filter(e => e.status === 'active').length;
-  const leaveCount = employees.filter(e => e.status === 'on-leave').length;
-  const deptCount = new Set(employees.map(e => e.department)).size;
+  const summaryMetrics = useMemo(() => {
+    const totalEmployees = employees.length;
+    const activeCount = employees.filter(e => e.status === 'active').length;
+    const leaveCount = employees.filter(e => e.status === 'on-leave').length;
+    const deptCount = new Set(employees.map(e => e.department)).size;
+    return { totalEmployees, activeCount, leaveCount, deptCount };
+  }, [employees]);
+
+  const { totalEmployees, activeCount, leaveCount, deptCount } = summaryMetrics;
 
   // Department distribution calculation for small chart
-  const deptDistribution = departments
-    .filter(d => d.value !== 'all')
-    .map(d => {
-      const count = employees.filter(e => e.department === d.value).length;
-      return { dept: d.value, count };
-    })
-    .sort((a, b) => b.count - a.count);
+  const deptDistribution = useMemo(() => {
+    return departments
+      .filter(d => d.value !== 'all')
+      .map(d => {
+        const count = employees.filter(e => e.department === d.value).length;
+        return { dept: d.value, count };
+      })
+      .sort((a, b) => b.count - a.count);
+  }, [employees, departments]);
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();

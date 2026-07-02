@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useReducer } from 'react';
+import React, { createContext, useContext, useEffect, useReducer, useCallback, useMemo } from 'react';
 import { Employee, Task, TaskStatus, ActivityEvent } from '../types';
 import { INITIAL_EMPLOYEES, INITIAL_TASKS, INITIAL_EVENTS } from '../data/mockData';
 
@@ -70,12 +70,9 @@ function appReducer(state: AppState, action: AppAction): AppState {
       
       const assigneeName = state.employees.find(e => e.id === task.assigneeId)?.name || 'Someone';
       const eventType = newStatus === 'done' ? 'task_completed' : 'status_changed';
-      let message = '';
-      if (newStatus === 'done') {
-        message = `${assigneeName} completed task "${task.title}"`;
-      } else {
-        message = `Task "${task.title}" status updated to ${newStatus.replace('-', ' ')}`;
-      }
+      const message = newStatus === 'done'
+        ? `${assigneeName} completed task "${task.title}"`
+        : `Task "${task.title}" status updated to ${newStatus.replace('-', ' ')}`;
       
       const newEvent: ActivityEvent = {
         id: `evt-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
@@ -134,9 +131,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case 'DELETE_TASK': {
       const updatedTasks = state.tasks.filter(t => t.id !== action.payload);
       const newState = { ...state, tasks: updatedTasks };
-      try {
-        localStorage.setItem('meridian_data', JSON.stringify(newState));
-      } catch (e) {}
+      try { localStorage.setItem('meridian_data', JSON.stringify(newState)); } catch (e) {}
       return newState;
     }
     case 'UPDATE_TASK': {
@@ -145,17 +140,13 @@ function appReducer(state: AppState, action: AppAction): AppState {
       const updatedTasks = [...state.tasks];
       updatedTasks[taskIndex] = action.payload;
       const newState = { ...state, tasks: updatedTasks };
-      try {
-        localStorage.setItem('meridian_data', JSON.stringify(newState));
-      } catch (e) {}
+      try { localStorage.setItem('meridian_data', JSON.stringify(newState)); } catch (e) {}
       return newState;
     }
     case 'BULK_DELETE_TASKS': {
       const updatedTasks = state.tasks.filter(t => !action.payload.includes(t.id));
       const newState = { ...state, tasks: updatedTasks };
-      try {
-        localStorage.setItem('meridian_data', JSON.stringify(newState));
-      } catch (e) {}
+      try { localStorage.setItem('meridian_data', JSON.stringify(newState)); } catch (e) {}
       return newState;
     }
     case 'BULK_UPDATE_TASKS': {
@@ -166,9 +157,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
         return t;
       });
       const newState = { ...state, tasks: updatedTasks };
-      try {
-        localStorage.setItem('meridian_data', JSON.stringify(newState));
-      } catch (e) {}
+      try { localStorage.setItem('meridian_data', JSON.stringify(newState)); } catch (e) {}
       return newState;
     }
     case 'DUPLICATE_TASK': {
@@ -184,9 +173,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
       
       const updatedTasks = [duplicatedTask, ...state.tasks];
       const newState = { ...state, tasks: updatedTasks };
-      try {
-        localStorage.setItem('meridian_data', JSON.stringify(newState));
-      } catch (e) {}
+      try { localStorage.setItem('meridian_data', JSON.stringify(newState)); } catch (e) {}
       return newState;
     }
     default:
@@ -267,63 +254,53 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
 
   // Persist global filters to localStorage when they change
   useEffect(() => {
-    try {
-      localStorage.setItem('meridian_searchFilter', searchFilter);
-    } catch (e) {}
+    try { localStorage.setItem('meridian_searchFilter', searchFilter); } catch (e) {}
   }, [searchFilter]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('meridian_priorityFilter', priorityFilter);
-    } catch (e) {}
+    try { localStorage.setItem('meridian_priorityFilter', priorityFilter); } catch (e) {}
   }, [priorityFilter]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('meridian_statusFilter', statusFilter);
-    } catch (e) {}
+    try { localStorage.setItem('meridian_statusFilter', statusFilter); } catch (e) {}
   }, [statusFilter]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('meridian_deptFilter', deptFilter);
-    } catch (e) {}
+    try { localStorage.setItem('meridian_deptFilter', deptFilter); } catch (e) {}
   }, [deptFilter]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('meridian_timeRangeFilter', timeRangeFilter);
-    } catch (e) {}
+    try { localStorage.setItem('meridian_timeRangeFilter', timeRangeFilter); } catch (e) {}
   }, [timeRangeFilter]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('meridian_density', density);
-    } catch (e) {}
+    try { localStorage.setItem('meridian_density', density); } catch (e) {}
   }, [density]);
 
-  const addTask = (taskData: Omit<Task, 'id' | 'createdAt'>) => {
+  // ── Memoized action creators — stable references prevent child re-renders ──
+
+  const addTask = useCallback((taskData: Omit<Task, 'id' | 'createdAt'>) => {
     const newTask: Task = {
       ...taskData,
       id: `task-${Date.now()}`,
       createdAt: new Date().toISOString(),
     };
     dispatch({ type: 'ADD_TASK', payload: newTask });
-  };
+  }, []);
 
-  const updateTaskStatus = (taskId: string, status: TaskStatus) => {
+  const updateTaskStatus = useCallback((taskId: string, status: TaskStatus) => {
     dispatch({ type: 'UPDATE_TASK_STATUS', payload: { taskId, status } });
-  };
+  }, []);
 
-  const addEmployee = (employeeData: Omit<Employee, 'id'>) => {
+  const addEmployee = useCallback((employeeData: Omit<Employee, 'id'>) => {
     const newEmployee: Employee = {
       ...employeeData,
       id: `emp-${Date.now()}`,
     };
     dispatch({ type: 'ADD_EMPLOYEE', payload: newEmployee });
-  };
+  }, []);
 
-  const logActivity = (type: ActivityEvent['type'], message: string) => {
+  const logActivity = useCallback((type: ActivityEvent['type'], message: string) => {
     const newEvent: ActivityEvent = {
       id: `evt-${Date.now()}`,
       type,
@@ -331,56 +308,75 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       timestamp: new Date().toISOString(),
     };
     dispatch({ type: 'LOG_ACTIVITY', payload: newEvent });
-  };
+  }, []);
 
-  const deleteTask = (taskId: string) => {
+  const deleteTask = useCallback((taskId: string) => {
     dispatch({ type: 'DELETE_TASK', payload: taskId });
-  };
+  }, []);
 
-  const updateTask = (task: Task) => {
+  const updateTask = useCallback((task: Task) => {
     dispatch({ type: 'UPDATE_TASK', payload: task });
-  };
+  }, []);
 
-  const bulkDeleteTasks = (taskIds: string[]) => {
+  const bulkDeleteTasks = useCallback((taskIds: string[]) => {
     dispatch({ type: 'BULK_DELETE_TASKS', payload: taskIds });
-  };
+  }, []);
 
-  const bulkUpdateTasks = (taskIds: string[], updates: Partial<Omit<Task, 'id' | 'createdAt'>>) => {
+  const bulkUpdateTasks = useCallback((taskIds: string[], updates: Partial<Omit<Task, 'id' | 'createdAt'>>) => {
     dispatch({ type: 'BULK_UPDATE_TASKS', payload: { taskIds, updates } });
-  };
+  }, []);
 
-  const duplicateTask = (taskId: string) => {
+  const duplicateTask = useCallback((taskId: string) => {
     dispatch({ type: 'DUPLICATE_TASK', payload: taskId });
-  };
+  }, []);
+
+  // ── Memoized context value — prevents all consumers from re-rendering
+  //    when an unrelated slice of state changes ──
+  const contextValue = useMemo<AppDataContextType>(() => ({
+    ...state,
+    addTask,
+    updateTaskStatus,
+    addEmployee,
+    logActivity,
+    deleteTask,
+    updateTask,
+    bulkDeleteTasks,
+    bulkUpdateTasks,
+    duplicateTask,
+
+    searchFilter,
+    setSearchFilter,
+    priorityFilter,
+    setPriorityFilter,
+    statusFilter,
+    setStatusFilter,
+    deptFilter,
+    setDeptFilter,
+    timeRangeFilter,
+    setTimeRangeFilter,
+    density,
+    setDensity,
+  }), [
+    state,
+    addTask,
+    updateTaskStatus,
+    addEmployee,
+    logActivity,
+    deleteTask,
+    updateTask,
+    bulkDeleteTasks,
+    bulkUpdateTasks,
+    duplicateTask,
+    searchFilter,
+    priorityFilter,
+    statusFilter,
+    deptFilter,
+    timeRangeFilter,
+    density,
+  ]);
 
   return (
-    <AppDataContext.Provider
-      value={{
-        ...state,
-        addTask,
-        updateTaskStatus,
-        addEmployee,
-        logActivity,
-        deleteTask,
-        updateTask,
-        bulkDeleteTasks,
-        bulkUpdateTasks,
-        duplicateTask,
-        
-        searchFilter,
-        setSearchFilter,
-        priorityFilter,
-        setPriorityFilter,
-        statusFilter,
-        setStatusFilter,
-        deptFilter,
-        setDeptFilter,
-        timeRangeFilter,
-        setTimeRangeFilter,
-        density,
-        setDensity,
-      }}
-    >
+    <AppDataContext.Provider value={contextValue}>
       {children}
     </AppDataContext.Provider>
   );

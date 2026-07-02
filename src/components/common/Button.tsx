@@ -5,7 +5,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
 }
 
-export function Button({ variant = 'primary', children, className = '', ...props }: ButtonProps) {
+export const Button = React.memo(function Button({ variant = 'primary', children, className = '', ...props }: ButtonProps) {
   const baseStyles = "inline-flex items-center justify-center font-medium transition-all focus:outline-none disabled:opacity-50 disabled:pointer-events-none text-[14px] px-5 py-2.5 cursor-pointer hover:scale-[1.02] active:scale-[0.98] duration-200";
   
   let variantStyles = "";
@@ -22,4 +22,4 @@ export function Button({ variant = 'primary', children, className = '', ...props
       {children}
     </button>
   );
-}
+});
