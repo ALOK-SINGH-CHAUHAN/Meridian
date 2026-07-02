@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+@theme {
+  /* Map theme classes directly to root CSS variables for dynamic dark/light transition */
+  --color-canvas: var(--canvas);
+  --color-fog: var(--fog);
+  --color-card: var(--card);
+  --color-text-primary: var(--text-primary);
+  --color-text-ash: var(--text-ash);
+  --color-text-graphite: var(--text-graphite);
+  --color-hairline: var(--hairline);
+  --color-apricot: var(--apricot);
+  --color-sky: var(--sky);
+  --color-rust: var(--rust);
+  --color-blue-accent: var(--blue-acc);
+  
+  --radius-container: 20px;
+  --radius-card: 16px;
+  --radius-input: 12px;
+  --radius-button: 9999px;
+}
+
+:root {
+  --canvas: #f8fafc; /* Slate 50 */
+  --fog: #f1f5f9; /* Slate 100 */
+  --card: #ffffff;
+  --text-primary: #0f172a; /* Slate 900 */
+  --text-ash: #334155; /* Slate 700 */
+  --text-graphite: #64748b; /* Slate 500 */
+  --hairline: #e2e8f0; /* Slate 200 */
+  
+  --apricot: #fee2e2; /* Red 100 wash */
+  --sky: #dbeafe; /* Blue 100 wash */
+  --rust: #b91c1c; /* Red 700 */
+  --blue-acc: #2563eb; /* Blue 600 */
+}
+
+[data-theme="dark"] {
+  --canvas: #09090b; /* Zinc 950 */
+  --fog: #18181b; /* Zinc 900 */
+  --card: #121214; /* Zinc 900/950 blend */
+  --text-primary: #f8fafc; /* Slate 50 */
+  --text-ash: #cbd5e1; /* Slate 300 */
+  --text-graphite: #94a3b8; /* Slate 400 */
+  --hairline: #27272a; /* Zinc 800 */
+  
+  --apricot: #450a0a; /* Red 955 wash */
+  --sky: #1e3a8a; /* Blue 955 wash */
+  --rust: #ef4444; /* Red 500 */
+  --blue-acc: #60a5fa; /* Blue 400 */
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.scroller {
+  scrollbar-width: thin;
+  scrollbar-color: var(--hairline) transparent;
+}
+
+@supports not (scrollbar-color: auto) {
+  .scroller::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scroller::-webkit-scrollbar-thumb {
+    background: var(--hairline);
+    border-radius: 9999px;
+  }
+  .scroller::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
