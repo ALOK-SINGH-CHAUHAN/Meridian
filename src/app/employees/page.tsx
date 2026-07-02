@@ -451,6 +451,8 @@ function EmployeesPageInner() {
                           <img
                             src={emp.avatarUrl}
                             alt={emp.name}
+                            width={56}
+                            height={56}
                             className="w-14 h-14 rounded-full object-cover border border-hairline shadow-sm bg-fog"
                             onError={(e) => {
                               (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${emp.name}`;
@@ -630,6 +632,8 @@ function EmployeesPageInner() {
                 <img 
                   src={selectedEmployee.avatarUrl} 
                   alt="" 
+                  width={80}
+                  height={80}
                   className="w-20 h-20 rounded-full border-2 border-blue-accent/25 shadow-md bg-fog object-cover"
                 />
                 <span className={`absolute bottom-0 right-1 block h-5 w-5 rounded-full border-4 border-card ${

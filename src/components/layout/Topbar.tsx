@@ -120,7 +120,7 @@ export function Topbar() {
                       }}
                       className="flex items-center gap-2.5 text-left w-full px-2.5 py-1.5 rounded-lg hover:bg-blue-accent/10 transition-colors cursor-pointer group"
                     >
-                      <img src={e.avatarUrl} alt={e.name} className="w-5.5 h-5.5 rounded-full object-cover" />
+                      <img src={e.avatarUrl} alt={e.name} width={22} height={22} className="w-5.5 h-5.5 rounded-full object-cover" />
                       <div className="flex flex-col min-w-0">
                         <span className="text-[12px] font-semibold text-text-primary group-hover:text-blue-accent truncate">{e.name}</span>
                         <span className="text-[10px] text-text-graphite truncate">{e.role}</span>

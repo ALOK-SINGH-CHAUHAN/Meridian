@@ -928,10 +928,12 @@ function TasksPageInner() {
                               {/* Avatar + Name */}
                               <div className="flex items-center gap-1.5 shrink-0">
                                 {assignee ? (
-                                  <img
-                                    src={assignee.avatarUrl}
-                                    alt=""
-                                    className="w-5 h-5 rounded-full object-cover border border-hairline/25"
+                                  <img 
+                                    src={assignee.avatarUrl} 
+                                    alt={assignee.name}
+                                    width={20}
+                                    height={20}
+                                    className="w-5 h-5 rounded-full object-cover shadow-sm bg-fog border border-hairline/25"
                                     onError={(e) => {
                                       (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${assignee.name}`;
                                     }}
@@ -1045,10 +1047,12 @@ function TasksPageInner() {
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-2">
                             {assignee && (
-                              <img
-                                src={assignee.avatarUrl}
-                                alt={assignee.name}
-                                className="w-5.5 h-5.5 rounded-full object-cover"
+                              <img 
+                                src={assignee.avatarUrl} 
+                                alt={assignee.name} 
+                                width={16}
+                                height={16}
+                                className="w-4 h-4 rounded-full object-cover"
                               />
                             )}
                             <span className="font-semibold text-text-primary text-[12.5px]">

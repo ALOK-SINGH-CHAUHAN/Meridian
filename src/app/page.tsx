@@ -31,20 +31,20 @@ import {
   Sparkles,
   CalendarDays
 } from 'lucide-react';
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts';
+const PerformanceChart = dynamic(() => import('../components/dashboard/PerformanceChart'), {
+  ssr: false,
+  loading: () => <div className="w-full h-full animate-pulse bg-fog/50 rounded-lg"></div>
+});
+
+const StatusDonutChart = dynamic(() => import('../components/dashboard/StatusDonutChart'), {
+  ssr: false,
+  loading: () => <div className="w-[170px] h-[170px] rounded-full animate-pulse bg-fog/50"></div>
+});
+
+const SparklineChart = dynamic(() => import('../components/dashboard/Sparkline'), {
+  ssr: false,
+  loading: () => <div className="w-[80px] h-[30px] rounded animate-pulse bg-fog/50"></div>
+});
 
 function AnimatedNumber({ value }: { value: number }) {
   const displayValue = useAnimatedNumber(value);
@@ -318,30 +318,13 @@ export default function DashboardPage() {
     }
   };
 
-  // Sparkline chart component for KPI cards
+  // Sparkline chart wrapper for KPI cards
   const Sparkline = ({ metric }: { metric: 'employees' | 'active' | 'overdue' | 'rate' }) => {
     const data = getSparklineData(metric);
-    const strokeColor = metric === 'employees' 
-      ? '#2563eb' 
-      : metric === 'active' 
-      ? '#ea580c' 
-      : metric === 'overdue' 
-      ? '#dc2626' 
-      : '#16a34a';
-
+    
     return (
       <div className="w-[80px] h-[30px] opacity-85">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 2, bottom: 2, left: 2, right: 2 }}>
-            <Line 
-              type="monotone" 
-              dataKey="value" 
-              stroke={strokeColor} 
-              strokeWidth={1.5} 
-              dot={false} 
-            />
-          </LineChart>
-        </ResponsiveContainer>
+        <SparklineChart data={data} metric={metric} />
       </div>
     );
   };
@@ -597,45 +580,12 @@ export default function DashboardPage() {
 
           {/* Line & Bar Chart with bottom margin increased to 12px to push legend */}
           <div className="flex-1 w-full min-h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              {chartType === 'line' ? (
-                <LineChart data={chartData} margin={{ left: -10, right: 10, top: 10, bottom: 12 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--hairline)" opacity={0.2} />
-                  <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: 'var(--text-graphite)', fontSize: 11 }} />
-                  <YAxis tickLine={false} axisLine={false} tick={{ fill: 'var(--text-graphite)', fontSize: 11 }} />
-                  <Tooltip contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--hairline)', borderRadius: '12px', fontSize: '12.5px', color: 'var(--text-primary)', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
-                  
-                  {activeAnalytics === 'completions' ? (
-                    <>
-                      {!hiddenDepts['Engineering'] && <Line type="monotone" dataKey="Engineering" stroke="#2563eb" strokeWidth={2.5} dot={{ r: 3, strokeWidth: 0, fill: '#2563eb' }} />}
-                      {!hiddenDepts['Product'] && <Line type="monotone" dataKey="Product" stroke="#16a34a" strokeWidth={2.5} dot={{ r: 3, strokeWidth: 0, fill: '#16a34a' }} />}
-                      {!hiddenDepts['Security'] && <Line type="monotone" dataKey="Security" stroke="#ea580c" strokeWidth={2.5} dot={{ r: 3, strokeWidth: 0, fill: '#ea580c' }} />}
-                      {!hiddenDepts['Operations'] && <Line type="monotone" dataKey="Operations" stroke="#9333ea" strokeWidth={2.5} dot={{ r: 3, strokeWidth: 0, fill: '#9333ea' }} />}
-                    </>
-                  ) : (
-                    <Line type="monotone" dataKey="Productivity" stroke="var(--blue-acc)" strokeWidth={3} dot={{ r: 4, strokeWidth: 0, fill: 'var(--blue-acc)' }} />
-                  )}
-                </LineChart>
-              ) : (
-                <BarChart data={chartData} margin={{ left: -10, right: 10, top: 10, bottom: 12 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--hairline)" opacity={0.2} />
-                  <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: 'var(--text-graphite)', fontSize: 11 }} />
-                  <YAxis tickLine={false} axisLine={false} tick={{ fill: 'var(--text-graphite)', fontSize: 11 }} />
-                  <Tooltip contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--hairline)', borderRadius: '12px', fontSize: '12.5px', color: 'var(--text-primary)', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
-                  
-                  {activeAnalytics === 'completions' ? (
-                    <>
-                      {!hiddenDepts['Engineering'] && <Bar dataKey="Engineering" fill="#2563eb" radius={[4, 4, 0, 0]} />}
-                      {!hiddenDepts['Product'] && <Bar dataKey="Product" fill="#16a34a" radius={[4, 4, 0, 0]} />}
-                      {!hiddenDepts['Security'] && <Bar dataKey="Security" fill="#ea580c" radius={[4, 4, 0, 0]} />}
-                      {!hiddenDepts['Operations'] && <Bar dataKey="Operations" fill="#9333ea" radius={[4, 4, 0, 0]} />}
-                    </>
-                  ) : (
-                    <Bar dataKey="Productivity" fill="var(--blue-acc)" radius={[4, 4, 0, 0]} />
-                  )}
-                </BarChart>
-              )}
-            </ResponsiveContainer>
+            <PerformanceChart 
+              chartType={chartType}
+              activeAnalytics={activeAnalytics}
+              chartData={chartData}
+              hiddenDepts={hiddenDepts}
+            />
           </div>
 
           {/* Interactive Legends */}
@@ -688,54 +638,13 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex-1 flex items-center justify-center relative min-h-[220px]">
-            {donutData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'var(--card)', 
-                      borderColor: 'var(--hairline)', 
-                      borderRadius: '12px', 
-                      fontSize: '12px', 
-                      color: 'var(--text-primary)',
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.1)' 
-                    }}
-                    formatter={(value: any, name: any) => {
-                      const total = filteredTasks.length;
-                      const percent = total > 0 ? Math.round((value / total) * 100) : 0;
-                      return [`${value} Tasks (${percent}%)`, name];
-                    }}
-                  />
-                  <Pie
-                    data={donutData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={65}
-                    outerRadius={85}
-                    paddingAngle={4}
-                    dataKey="value"
-                    onMouseEnter={(_, index) => setActivePieIndex(index)}
-                    onMouseLeave={() => setActivePieIndex(null)}
-                  >
-                    {donutData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={entry.color} 
-                        opacity={activePieIndex === null || activePieIndex === index ? 1 : 0.55}
-                        style={{ 
-                          transform: activePieIndex === index ? 'scale(1.03)' : 'scale(1)', 
-                          transformOrigin: 'center', 
-                          transition: 'all 0.2s ease-in-out',
-                          cursor: 'pointer'
-                        }}
-                      />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <span className="text-[12px] text-text-graphite">No active scopes found.</span>
-            )}
+            <StatusDonutChart 
+              donutData={donutData} 
+              totalTasks={filteredTasks.length}
+              activePieIndex={activePieIndex}
+              onPieEnter={(i) => setActivePieIndex(i)}
+              onPieLeave={() => setActivePieIndex(null)}
+            />
             <div className="absolute flex flex-col items-center justify-center cursor-default">
               <span className="text-[28px] font-bold text-text-primary">{filteredTasks.length}</span>
               <span className="text-[10px] uppercase font-bold text-text-graphite tracking-wider">Total Tasks</span>
@@ -880,7 +789,7 @@ export default function DashboardPage() {
               {leaderboardData.map((leader, i) => (
                 <div key={i} className="flex items-center justify-between text-[11.5px] cursor-default py-0.5">
                   <div className="flex items-center gap-2 truncate max-w-[125px]">
-                    <img src={leader.avatar} alt="" className="w-6 h-6 rounded-full object-cover border border-hairline/35 shadow-xs" />
+                    <img src={leader.avatar} alt="" width={24} height={24} className="w-6 h-6 rounded-full object-cover border border-hairline/35 shadow-xs" />
                     <span className="font-semibold text-text-primary truncate">{leader.name.split(' ')[0]}</span>
                   </div>
                   <span className="font-bold text-text-ash">{leader.count} done</span>
@@ -961,7 +870,7 @@ export default function DashboardPage() {
                     
                     <div className="flex items-center justify-between text-[11px] text-text-graphite pt-1">
                       <div className="flex items-center gap-1.5">
-                        {assignee && <img src={assignee.avatarUrl} alt="" className="w-4 h-4 rounded-full object-cover" />}
+                        {assignee && <img src={assignee.avatarUrl} alt="" width={16} height={16} className="w-4 h-4 rounded-full object-cover" />}
                         <span>{assignee ? assignee.name.split(' ')[0] : 'Someone'}</span>
                       </div>
                       <span>{new Date(task.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
